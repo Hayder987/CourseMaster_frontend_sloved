@@ -8,13 +8,17 @@ import { fetchMyEnrollments } from "../store/slices/enrollmentSlice";
 
 export default function MainLayout() {
     const dispatch = useDispatch();
-    const { token, isAuthenticated } = useSelector((state) => state.auth);
+    const { token, user, isAuthenticated } = useSelector((state) => state.auth);
 
     useEffect(() => {
-        if (token && !isAuthenticated) {
+        // `isAuthenticated` is initialised from the stored token, so it is
+        // already true after a reload while `user` is still null. Key the
+        // re-hydration off `user` instead, otherwise the profile is never
+        // fetched and role-dependent UI stays hidden.
+        if (token && !user) {
             dispatch(getMeAsync());
         }
-    }, [token, isAuthenticated, dispatch]);
+    }, [token, user, dispatch]);
 
     useEffect(() => {
         if (isAuthenticated) {

@@ -10,7 +10,7 @@ export default function EditCourse() {
     const navigate = useNavigate();
 
     const { currentCourse, detailLoading } = useSelector((state) => state.courses);
-    const { creating, error } = useSelector((state) => state.admin);
+    const { updating, error } = useSelector((state) => state.admin);
 
     const [form, setForm] = useState({
         title: "",
@@ -713,10 +713,10 @@ export default function EditCourse() {
                 <div className="flex gap-3 pt-6">
                     <button
                         type="submit"
-                        disabled={creating}
+                        disabled={updating}
                         className="btn btn-primary flex-1"
                     >
-                        {creating ? (
+                        {updating ? (
                             <>
                                 <span className="loading loading-spinner"></span>
                                 Updating...

@@ -68,6 +68,7 @@ const adminSlice = createSlice({
         assignments: [],
         loading: false,
         creating: false,
+        updating: false,
         error: null,
         success: null,
     },
@@ -93,10 +94,16 @@ const adminSlice = createSlice({
                 state.creating = false;
                 state.error = action.payload;
             })
+            .addCase(updateCourseAsync.pending, (state) => {
+                state.updating = true;
+                state.error = null;
+            })
             .addCase(updateCourseAsync.fulfilled, (state) => {
+                state.updating = false;
                 state.success = "Course updated successfully!";
             })
             .addCase(updateCourseAsync.rejected, (state, action) => {
+                state.updating = false;
                 state.error = action.payload;
             })
             .addCase(deleteCourseAsync.fulfilled, (state) => {

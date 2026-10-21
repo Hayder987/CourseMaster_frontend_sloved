@@ -26,11 +26,6 @@ export default function Footer() {
                                 Courses
                             </a>
                         </li>
-                        <li>
-                            <a className="link link-hover text-base-content/80 hover:text-primary transition-colors" href="/about">
-                                About Us
-                            </a>
-                        </li>
                     </ul>
                 </div>
 

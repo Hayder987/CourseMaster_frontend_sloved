@@ -53,9 +53,7 @@ export default function CourseDetails() {
 
         if (cannotEnroll) return;
 
-        // Note: Since batches don't have _id in the model, we pass null
-        // The backend can be updated later to handle batch references properly
-        dispatch(enrollCourseAsync({ courseId: id, batchId: selectedBatchId !== null ? selectedBatchId.toString() : null }));
+        dispatch(enrollCourseAsync({ courseId: id, batchId: selectedBatchId }));
     };
 
     useEffect(() => {
@@ -113,7 +111,7 @@ export default function CourseDetails() {
                             WebkitBackgroundClip: 'text',
                             WebkitTextFillColor: 'transparent',
                             backgroundClip: 'text'
-                        }}>৳ {course.price * 100}</p>
+                        }}>৳ {course.price?.toLocaleString()}</p>
 
                         <div>
                             {isAdmin ? (
@@ -256,13 +254,11 @@ export default function CourseDetails() {
                         <h2 className="page-heading-h2 mb-4">Available Batches</h2>
                         <div className="space-y-2">
                             {course.batches.map((batch, idx) => {
-                                // Use index as batch identifier since batches don't have _id
-                                const batchIndex = idx;
-                                const isSelected = selectedBatchId === batchIndex;
+                                const isSelected = selectedBatchId === batch._id;
                                 return (
                                     <div
-                                        key={idx}
-                                        onClick={() => setSelectedBatchId(isSelected ? null : batchIndex)}
+                                        key={batch._id || idx}
+                                        onClick={() => setSelectedBatchId(isSelected ? null : batch._id)}
                                         className={`flex justify-between items-center p-3 rounded cursor-pointer transition ${isSelected
                                             ? "bg-primary text-primary-content border-2 border-primary"
                                             : "bg-base-200 hover:bg-base-300 border-2 border-transparent"
@@ -272,7 +268,7 @@ export default function CourseDetails() {
                                             <input
                                                 type="radio"
                                                 checked={isSelected}
-                                                onChange={() => setSelectedBatchId(isSelected ? null : batchIndex)}
+                                                onChange={() => setSelectedBatchId(isSelected ? null : batch._id)}
                                                 className="radio radio-sm"
                                                 onClick={(e) => e.stopPropagation()}
                                             />
@@ -285,7 +281,7 @@ export default function CourseDetails() {
                                 );
                             })}
                         </div>
-                        {selectedBatchId && (
+                        {selectedBatchId !== null && (
                             <div className="mt-3 text-sm text-primary">
                                 ✓ Batch selected for enrollment
                             </div>

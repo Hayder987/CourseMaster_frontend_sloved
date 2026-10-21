@@ -1,9 +1,19 @@
 import axios from "axios";
 import { getToken, clearToken } from "../utils/auth";
 
-const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api",
-});
+const baseURL =
+  import.meta.env.VITE_API_BASE_URL ||
+  // Only a local dev server may fall back to the local backend. A production
+  // build must never silently point at the developer's localhost.
+  (import.meta.env.DEV ? "http://localhost:5000/api" : "");
+
+if (import.meta.env.PROD && !import.meta.env.VITE_API_BASE_URL) {
+  console.error(
+    "VITE_API_BASE_URL is not configured; API requests will be sent to the frontend origin."
+  );
+}
+
+const api = axios.create({ baseURL });
 
 // Request interceptor - automatically add token
 api.interceptors.request.use(
@@ -21,10 +31,18 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    const isAuthRequest = /\/auth\/(login|register)$/.test(
+      error.config?.url || ""
+    );
+
+    // A rejected login/register is a credential error, not an expired
+    // session: keep the form mounted so its own error message renders.
+    if (error.response?.status === 401 && !isAuthRequest) {
       // Token expired or invalid
       clearToken();
-      window.location.href = "/login";
+      if (window.location.pathname !== "/login") {
+        window.location.href = "/login";
+      }
     }
     return Promise.reject(error);
   }

@@ -21,13 +21,14 @@ export default function CoursesSection() {
     const [category, setCategory] = useState("");
     const [tags, setTags] = useState("");
 
-    const fetchCourses = async () => {
+    const fetchCourses = async (pageOverride) => {
+        const requestedPage = pageOverride ?? page;
         try {
             setLoading(true);
             setError(null);
 
             const params = {
-                page,
+                page: requestedPage,
                 limit,
                 search: search || undefined,
                 sort: sort || undefined,
@@ -52,8 +53,15 @@ export default function CoursesSection() {
 
     const onSearchSubmit = (e) => {
         e.preventDefault();
+        if (page === 1) {
+            // Page is already 1, so the filter effect will not re-run.
+            fetchCourses(1);
+            return;
+        }
+        // Going back to page 1 triggers the effect below, which reads the
+        // current filters. Calling fetchCourses() here too would fire a
+        // second request with the stale page number.
         setPage(1);
-        fetchCourses();
     };
 
     // reset page when filters change

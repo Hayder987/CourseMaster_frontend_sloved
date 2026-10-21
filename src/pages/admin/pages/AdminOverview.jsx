@@ -133,9 +133,9 @@ export default function AdminOverview() {
     ];
 
     // Enrollment by course (top 5)
-    const courseEnrollmentData = analytics?.topCourses?.slice(0, 5).map((course) => ({
-        name: course.courseTitle?.substring(0, 15) || "Unknown",
-        enrollments: course.count,
+    const courseEnrollmentData = analytics?.enrollmentsByCourse?.slice(0, 5).map((course) => ({
+        name: course.courseName?.substring(0, 15) || "Unknown",
+        enrollments: course.enrollments,
     })) || [];
 
     return (
