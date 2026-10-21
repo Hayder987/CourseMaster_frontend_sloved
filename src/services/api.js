@@ -1,13 +1,15 @@
 import axios from "axios";
 import { getToken, clearToken } from "../utils/auth";
 
+const env = import.meta.env || {};
+
 const baseURL =
-  import.meta.env.VITE_API_BASE_URL ||
+  env.VITE_API_BASE_URL ||
   // Only a local dev server may fall back to the local backend. A production
   // build must never silently point at the developer's localhost.
-  (import.meta.env.DEV ? "http://localhost:5000/api" : "");
+  (env.DEV ? "http://localhost:5000/api" : "");
 
-if (import.meta.env.PROD && !import.meta.env.VITE_API_BASE_URL) {
+if (env.PROD && !env.VITE_API_BASE_URL) {
   console.error(
     "VITE_API_BASE_URL is not configured; API requests will be sent to the frontend origin."
   );

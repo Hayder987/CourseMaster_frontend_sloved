@@ -51,10 +51,15 @@ const enrollmentSlice = createSlice({
         enrolling: false,
         error: null,
         success: null,
+        // Distinguishes "not fetched yet" from "fetched and empty" so a
+        // consumer never treats the initial `[]` as a real result.
+        loaded: false,
+        loadError: null,
     },
     reducers: {
         clearError: (state) => {
             state.error = null;
+            state.loadError = null;
         },
         clearSuccess: (state) => {
             state.success = null;
@@ -78,15 +83,20 @@ const enrollmentSlice = createSlice({
             .addCase(fetchMyEnrollments.pending, (state) => {
                 state.loading = true;
                 state.error = null;
+                state.loadError = null;
             })
             .addCase(fetchMyEnrollments.fulfilled, (state, action) => {
                 state.loading = false;
+                state.loaded = true;
+                state.loadError = null;
                 // GET /enrollments/my returns the array directly (res.data), not a { data: [...] } envelope
                 state.enrollments = Array.isArray(action.payload) ? action.payload : [];
             })
             .addCase(fetchMyEnrollments.rejected, (state, action) => {
                 state.loading = false;
+                state.loaded = true;
                 state.error = action.payload;
+                state.loadError = action.payload;
             })
             .addCase(completeLessonAsync.pending, (state) => {
                 state.error = null;

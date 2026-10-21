@@ -31,14 +31,27 @@ export const registerAsync = createAsyncThunk(
 export const getMeAsync = createAsyncThunk(
     "auth/getMe",
     async (_, { rejectWithValue }) => {
+        const token = getToken();
+        if (!token) {
+            return rejectWithValue({ message: "No session token", isAuthError: true });
+        }
         try {
-            const token = getToken();
-            if (!token) throw new Error("No token");
             const res = await getMe();
             return res.data;
         } catch (err) {
-            clearToken();
-            return rejectWithValue(err.response?.data?.message || "Failed to load user");
+            const status = err.response?.status;
+            // 401/403 means the token itself was rejected. Anything else
+            // (offline, timeout, CORS, 5xx) is a transient failure and must
+            // not destroy the stored session.
+            const isAuthError = status === 401 || status === 403;
+            return rejectWithValue({
+                message:
+                    err.response?.data?.message ||
+                    (err.response
+                        ? "Unable to load your profile"
+                        : "Unable to reach the server. Check your connection and try again."),
+                isAuthError,
+            });
         }
     }
 );
@@ -51,6 +64,11 @@ const authSlice = createSlice({
         loading: false,
         error: null,
         isAuthenticated: !!getToken(),
+        // Session-verification state. `checked` distinguishes "not verified
+        // yet" from "verified and no profile"; `verifyError` holds a
+        // transient failure message while the token is still kept.
+        checked: false,
+        verifyError: null,
     },
     reducers: {
         logout: (state) => {
@@ -58,6 +76,8 @@ const authSlice = createSlice({
             state.token = null;
             state.isAuthenticated = false;
             state.error = null;
+            state.checked = false;
+            state.verifyError = null;
             clearToken();
         },
         clearError: (state) => {
@@ -76,6 +96,8 @@ const authSlice = createSlice({
                 state.user = action.payload.user;
                 state.token = action.payload.token;
                 state.isAuthenticated = true;
+                state.checked = true;
+                state.verifyError = null;
             })
             .addCase(registerAsync.rejected, (state, action) => {
                 state.loading = false;
@@ -92,6 +114,8 @@ const authSlice = createSlice({
                 state.user = action.payload.user;
                 state.token = action.payload.token;
                 state.isAuthenticated = true;
+                state.checked = true;
+                state.verifyError = null;
             })
             .addCase(loginAsync.rejected, (state, action) => {
                 state.loading = false;
@@ -101,17 +125,31 @@ const authSlice = createSlice({
             // GetMe
             .addCase(getMeAsync.pending, (state) => {
                 state.loading = true;
+                state.verifyError = null;
             })
             .addCase(getMeAsync.fulfilled, (state, action) => {
                 state.loading = false;
                 state.user = action.payload;
                 state.isAuthenticated = true;
+                state.checked = true;
+                state.verifyError = null;
             })
-            .addCase(getMeAsync.rejected, (state) => {
+            .addCase(getMeAsync.rejected, (state, action) => {
                 state.loading = false;
-                state.user = null;
-                state.token = null;
-                state.isAuthenticated = false;
+                state.checked = true;
+                const isAuthError = action.payload?.isAuthError === true;
+                if (isAuthError) {
+                    state.user = null;
+                    state.token = null;
+                    state.isAuthenticated = false;
+                    state.verifyError = null;
+                    clearToken();
+                } else {
+                    // Transient failure: keep the stored token so the user can
+                    // retry instead of being silently logged out.
+                    state.verifyError =
+                        action.payload?.message || "Unable to verify your session.";
+                }
             });
     },
 });

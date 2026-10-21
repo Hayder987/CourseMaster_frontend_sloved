@@ -5,7 +5,7 @@ import {
     fetchCourseById,
     clearCurrentCourse,
 } from "../../store/slices/coursesSlice";
-import { enrollCourseAsync, clearSuccess } from "../../store/slices/enrollmentSlice";
+import { enrollCourseAsync, fetchMyEnrollments, clearSuccess } from "../../store/slices/enrollmentSlice";
 import { getMeAsync } from "../../store/slices/authSlice";
 
 export default function CourseDetails() {
@@ -14,8 +14,15 @@ export default function CourseDetails() {
     const dispatch = useDispatch();
 
     const { currentCourse, detailLoading, error: courseError } = useSelector((state) => state.courses);
-    const { enrolling, error: enrollError, success, enrollments: myEnrollments } = useSelector((state) => state.enrollment);
-    const { user, token, isAuthenticated } = useSelector((state) => state.auth);
+    const {
+        enrolling,
+        error: enrollError,
+        success,
+        enrollments: myEnrollments,
+        loaded: enrollmentsLoaded,
+        loadError: enrollmentsLoadError,
+    } = useSelector((state) => state.enrollment);
+    const { user, token, isAuthenticated, checked, verifyError } = useSelector((state) => state.auth);
     const [selectedBatchId, setSelectedBatchId] = useState(null);
 
     useEffect(() => {
@@ -23,18 +30,25 @@ export default function CourseDetails() {
         return () => dispatch(clearCurrentCourse());
     }, [id, dispatch]);
 
-    // Load user if token exists but user is not loaded
-    useEffect(() => {
-        if (token && !user) {
-            dispatch(getMeAsync());
-        }
-    }, [token, user, dispatch]);
-
+    // Profile hydration is handled once by MainLayout's shared session state;
+    // this page no longer issues its own /auth/me request.
     const isCreator = user && currentCourse && user._id === currentCourse.instructorId;
     const isAdmin = user && user.role === "admin";
     const cannotEnroll = isAdmin || isCreator;
 
     const alreadyEnrolled = !!myEnrollments?.find((e) => e.course?._id === id);
+
+    
+    const loggedIn = !!token;
+    const profilePending = loggedIn && !user && !checked;
+    const enrollmentsPending = loggedIn && isAuthenticated && !enrollmentsLoaded && !enrollmentsLoadError;
+    const pendingCheck = profilePending || enrollmentsPending;
+    const checkError = loggedIn ? verifyError || enrollmentsLoadError : null;
+
+    const retryCheck = () => {
+        if (verifyError) dispatch(getMeAsync());
+        else dispatch(fetchMyEnrollments());
+    };
 
     const handleEnroll = async () => {
         // if user object not present but token exists, attempt to fetch profile
@@ -139,6 +153,20 @@ export default function CourseDetails() {
                                 <button onClick={() => navigate('/student')} className="btn btn-outline gap-2">
                                     Go to Dashboard
                                 </button>
+                            ) : pendingCheck ? (
+                                <button className="btn btn-primary gap-2" disabled>
+                                    <span className="loading loading-spinner"></span>
+                                    Checking enrollment...
+                                </button>
+                            ) : checkError ? (
+                                <div className="flex flex-col gap-2">
+                                    <div className="alert alert-warning">
+                                        <span>{checkError}</span>
+                                    </div>
+                                    <button onClick={retryCheck} className="btn btn-outline btn-sm gap-2">
+                                        Retry
+                                    </button>
+                                </div>
                             ) : (
                                 <button onClick={handleEnroll} disabled={enrolling} className="btn btn-primary gap-2">
                                     {enrolling ? (
@@ -219,7 +247,7 @@ export default function CourseDetails() {
             )}
 
             {/* Show message if not enrolled and not admin */}
-            {!alreadyEnrolled && !isAdmin && course.syllabus && course.syllabus.length > 0 && (
+            {!alreadyEnrolled && !isAdmin && !pendingCheck && !checkError && course.syllabus && course.syllabus.length > 0 && (
                 <div className="card bg-base-100 border border-base-300 shadow-sm">
                     <div className="card-body">
                         <h2 className="page-heading-h2">Course Syllabus</h2>

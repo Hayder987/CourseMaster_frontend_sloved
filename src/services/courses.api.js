@@ -1,7 +1,7 @@
 import api from "./api";
 
-export const getCourses = (params) => {
-  return api.get("/courses", { params });
+export const getCourses = (params, config = {}) => {
+  return api.get("/courses", { ...config, params });
 };
 
 export const getCourseById = (id) => {

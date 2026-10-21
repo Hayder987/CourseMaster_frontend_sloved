@@ -5,8 +5,9 @@ Video link: https://drive.google.com/file/d/1vjMrBxr0-7xqjxMX2EBEBw30D_av1pOu/vi
 
 A modern E-learning platform frontend built with React, Redux Toolkit, and Tailwind CSS.
 
-Admin email: admin@coursemaster.com
-Pass: admin123
+## Demo accounts
+
+Demo credentials are not published in this repository. The backend owner provisions accounts through the backend environment and seed configuration.
 
 ## Project Name & Description
 

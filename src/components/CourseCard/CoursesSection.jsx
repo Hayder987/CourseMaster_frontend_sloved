@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSelector } from "react-redux";
 import { Link } from "react-router-dom";
 import { getCourses } from "../../services/courses.api";
+import { buildCourseQuery } from "../../utils/courseQuery";
 import CoursesFilters from "./CoursesFilters";
 import CoursesGrid from "./CoursesGrid";
 import CoursesPagination from "./CoursesPagination";
@@ -21,35 +22,56 @@ export default function CoursesSection() {
     const [category, setCategory] = useState("");
     const [tags, setTags] = useState("");
 
+    // Request identity: only the newest response may update the grid.
+    const requestSeq = useRef(0);
+    const cancelRef = useRef(null);
+
     const fetchCourses = async (pageOverride) => {
         const requestedPage = pageOverride ?? page;
+        const seq = ++requestSeq.current;
+
+        // Cancel the previous in-flight request (filter/page change, unmount).
+        cancelRef.current?.abort();
+        const controller = new AbortController();
+        cancelRef.current = controller;
+
         try {
             setLoading(true);
             setError(null);
 
-            const params = {
+            const params = buildCourseQuery({
                 page: requestedPage,
                 limit,
-                search: search || undefined,
-                sort: sort || undefined,
-                category: category || undefined,
-                tags: tags || undefined,
-            };
+                search,
+                sort,
+                category,
+                tags,
+            });
 
-            const res = await getCourses(params);
+            const res = await getCourses(params, { signal: controller.signal });
+            if (seq !== requestSeq.current) return;
             setCourses(res.data.courses || []);
             setTotalPages(res.data.totalPages || 1);
         } catch (err) {
+            // A cancelled or superseded request must not touch state.
+            if (seq !== requestSeq.current) return;
+            if (err?.code === "ERR_CANCELED" || err?.name === "CanceledError") return;
             setError("Failed to load courses");
         } finally {
-            setLoading(false);
+            if (seq === requestSeq.current) setLoading(false);
         }
     };
 
     useEffect(() => {
         fetchCourses();
-        // eslint-disable-next-line
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [page, sort, category, tags]);
+
+    // Abort any in-flight request when the grid unmounts.
+    useEffect(() => () => {
+        requestSeq.current += 1;
+        cancelRef.current?.abort();
+    }, []);
 
     const onSearchSubmit = (e) => {
         e.preventDefault();
@@ -58,25 +80,27 @@ export default function CoursesSection() {
             fetchCourses(1);
             return;
         }
-        // Going back to page 1 triggers the effect below, which reads the
-        // current filters. Calling fetchCourses() here too would fire a
-        // second request with the stale page number.
+        // Going back to page 1 triggers the effect, which reads the current
+        // filters. Calling fetchCourses() here too would fire a second
+        // request with the stale page number.
         setPage(1);
     };
 
-    // reset page when filters change
-    useEffect(() => {
+    // Reset the page together with a filter so a change on page 2+ issues a
+    // single page-1 request instead of a stale-page request plus a second one.
+    const changeFilter = (setter) => (value) => {
+        setter(value);
         setPage(1);
-    }, [sort, category, tags]);
+    };
 
     return (
         <div className="space-y-6">
 
             <CoursesFilters
                 search={search} setSearch={setSearch}
-                sort={sort} setSort={setSort}
-                category={category} setCategory={setCategory}
-                tags={tags} setTags={setTags}
+                sort={sort} setSort={changeFilter(setSort)}
+                category={category} setCategory={changeFilter(setCategory)}
+                tags={tags} setTags={changeFilter(setTags)}
                 onSearchSubmit={onSearchSubmit}
             />
 

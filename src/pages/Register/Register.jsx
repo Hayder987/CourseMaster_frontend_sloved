@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { registerUser } from "../../services/auth.api";
+import { saveToken } from "../../utils/auth";
 import { Link, useNavigate } from "react-router-dom";
 
 export default function Register() {
@@ -29,7 +30,16 @@ export default function Register() {
                 payload.adminKey = form.adminKey.trim();
             }
 
-            await registerUser(payload);
+            const res = await registerUser(payload);
+
+            // Registration returns a session token. Keep the same post-login
+            // behaviour as the login form so the new account is usable at once.
+            if (res.data?.token) {
+                saveToken(res.data.token);
+                navigate("/");
+                window.location.reload();
+                return;
+            }
 
             navigate("/login");
         } catch (err) {

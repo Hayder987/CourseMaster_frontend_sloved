@@ -1,14 +1,14 @@
 import { Link, NavLink, useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useSelector } from "react-redux";
 import Logo from "./Logo";
 import ThemeToggle from "./ThemeToggle";
-import { getToken, clearToken } from "../../utils/auth";
-import { getMe } from "../../services/auth.api";
+import { clearToken } from "../../utils/auth";
 
 export default function Navbar() {
     const navigate = useNavigate();
-    const token = getToken();
-    const [me, setMe] = useState(null);
+    // Single source of truth: the shared session state hydrated once by
+    // MainLayout. This avoids a second /auth/me request per page load.
+    const { token, user: me } = useSelector((state) => state.auth);
 
     const navLinkClass = ({ isActive }) =>
         isActive
@@ -17,24 +17,9 @@ export default function Navbar() {
 
     const handleLogout = () => {
         clearToken();
-        setMe(null);
         navigate("/");
         window.location.reload();
     };
-
-    useEffect(() => {
-        const loadMe = async () => {
-            if (!token) return setMe(null);
-            try {
-                const res = await getMe();
-                setMe(res.data);
-            } catch {
-                clearToken();
-                setMe(null);
-            }
-        };
-        loadMe();
-    }, [token]);
 
     const initials = me?.name
         ? me.name.split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase()

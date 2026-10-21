@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { fetchEnrollments, fetchAssignments } from "../../../store/slices/adminSlice";
 import { getAnalytics } from "../../../services/admin.api";
+import { mapCourseEnrollments } from "../../../utils/adminAnalytics";
 import {
     BarChart,
     Bar,
@@ -133,10 +134,7 @@ export default function AdminOverview() {
     ];
 
     // Enrollment by course (top 5)
-    const courseEnrollmentData = analytics?.enrollmentsByCourse?.slice(0, 5).map((course) => ({
-        name: course.courseName?.substring(0, 15) || "Unknown",
-        enrollments: course.enrollments,
-    })) || [];
+    const courseEnrollmentData = mapCourseEnrollments(analytics?.enrollmentsByCourse);
 
     return (
         <div className="space-y-4 sm:space-y-6">

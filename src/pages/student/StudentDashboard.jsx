@@ -5,11 +5,23 @@ import { Link } from "react-router-dom";
 import { getQuizStats } from "../../services/quiz.api";
 import { getAssignmentStats } from "../../services/assignment.api";
 import { getCourseById } from "../../services/courses.api";
+import { getEnrollmentListState } from "../../utils/enrollmentListState";
 
 export default function StudentDashboard() {
     const dispatch = useDispatch();
-    const { enrollments = [], loading, error } = useSelector((state) => state.enrollment);
+    const {
+        enrollments = [],
+        loading,
+        error,
+        loaded: enrollmentsLoaded,
+        loadError: enrollmentsLoadError,
+    } = useSelector((state) => state.enrollment);
     const { currentCourse } = useSelector((state) => state.courses);
+    const listState = getEnrollmentListState({
+        loaded: enrollmentsLoaded,
+        loadError: enrollmentsLoadError,
+        count: enrollments.length,
+    });
 
     const [expandedCourse, setExpandedCourse] = useState(null);
     const [courseStats, setCourseStats] = useState({}); // { courseId: { quizStats, assignmentStats, courseData, lessonMap } }
@@ -146,7 +158,7 @@ export default function StudentDashboard() {
     // Note: Stats will be refreshed when user expands the course details
     // The data is fetched fresh from the database each time
 
-    if (loading) {
+    if (loading || listState === "loading") {
         return (
             <div className="flex justify-center items-center min-h-[60vh]">
                 <span className="loading loading-spinner loading-lg"></span>
@@ -166,10 +178,18 @@ export default function StudentDashboard() {
             {error && (
                 <div className="alert alert-error">
                     <span>{error}</span>
+                    {enrollmentsLoadError && (
+                        <button
+                            onClick={() => dispatch(fetchMyEnrollments())}
+                            className="btn btn-sm btn-outline"
+                        >
+                            Retry
+                        </button>
+                    )}
                 </div>
             )}
 
-            {enrollments.length === 0 ? (
+            {listState === "error" ? null : listState === "empty" ? (
                 <div className="card bg-base-200">
                     <div className="card-body text-center py-12">
                         <h2 className="card-title justify-center">No courses enrolled yet</h2>
@@ -498,8 +518,14 @@ export default function StudentDashboard() {
                                                     )}
                                                 </>
                                             ) : (
-                                                <div className="text-center py-4 text-base-content/70">
-                                                    Click "View Details" to load statistics
+                                                <div className="alert alert-warning">
+                                                    <span>Could not load course statistics.</span>
+                                                    <button
+                                                        onClick={() => handleRefreshStats(courseId)}
+                                                        className="btn btn-sm btn-outline"
+                                                    >
+                                                        Retry
+                                                    </button>
                                                 </div>
                                             )}
                                         </div>

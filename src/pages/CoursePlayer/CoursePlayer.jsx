@@ -3,9 +3,9 @@ import { useParams, Navigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchCourseById } from "../../store/slices/coursesSlice";
 import { completeLessonAsync, fetchMyEnrollments } from "../../store/slices/enrollmentSlice";
-import { getMyEnrollments } from "../../services/enrollment.api";
 import { submitAssignment } from "../../services/assignment.api";
 import { submitQuiz as submitQuizAPI } from "../../services/quiz.api";
+import { getEnrollmentViewState } from "../../utils/enrollmentGate";
 
 // Helper function to convert YouTube URLs to embed format
 const convertToEmbedUrl = (url) => {
@@ -47,29 +47,29 @@ const convertToEmbedUrl = (url) => {
 export default function CoursePlayer() {
     const { id } = useParams();
     const dispatch = useDispatch();
-    const [enrollment, setEnrollment] = useState(null);
-    const [enrollmentChecked, setEnrollmentChecked] = useState(false);
     const [selectedModule, setSelectedModule] = useState(0);
     const [selectedLesson, setSelectedLesson] = useState(0);
     const [loading, setLoading] = useState(true);
 
     const { currentCourse } = useSelector((state) => state.courses);
+    const {
+        enrollments,
+        loaded: enrollmentsLoaded,
+        loading: enrollmentsLoading,
+        loadError: enrollmentsLoadError,
+    } = useSelector((state) => state.enrollment);
+
+    // Enrollment is owned by the shared slice (fetched once by MainLayout), so
+    // the player consumes it instead of issuing a second request of its own.
+    const enrollment = enrollments.find((e) => e.course?._id === id) || null;
+    const viewState = getEnrollmentViewState({
+        loaded: enrollmentsLoaded,
+        loadError: enrollmentsLoadError,
+        enrollment,
+    });
 
     useEffect(() => {
         dispatch(fetchCourseById(id)).then(() => setLoading(false));
-
-        const fetchEnrollment = async () => {
-            try {
-                const res = await getMyEnrollments();
-                const userEnroll = res.data.find((e) => e.course?._id === id);
-                setEnrollment(userEnroll);
-            } catch (err) {
-                console.error("Failed to load enrollment:", err);
-            } finally {
-                setEnrollmentChecked(true);
-            }
-        };
-        fetchEnrollment();
     }, [id, dispatch]);
 
     const handleMarkComplete = async () => {
@@ -80,29 +80,20 @@ export default function CoursePlayer() {
         if (!currentLesson) return;
 
         try {
-            const result = await dispatch(
+            // The slice stores the updated enrollment, so `enrollment` above
+            // refreshes without a second fetch.
+            await dispatch(
                 completeLessonAsync({
                     enrollmentId: enrollment._id,
                     lessonId: currentLesson._id,
                 })
             ).unwrap();
-
-            if (result) setEnrollment(result);
-            else {
-                // fallback: re-fetch
-                const res = await getMyEnrollments();
-                const userEnroll = res.data.find((e) => e.course?._id === id);
-                setEnrollment(userEnroll);
-            }
-
-            // refresh global enrollments for dashboard
-            dispatch(fetchMyEnrollments());
-        } catch (err) {
-            console.error("Failed to mark lesson complete:", err);
+        } catch {
+            // The slice records the error; the lesson simply stays incomplete.
         }
     };
 
-    if (loading || !enrollmentChecked) {
+    if (loading || viewState === "loading") {
         return (
             <div className="flex justify-center items-center min-h-screen">
                 <span className="loading loading-spinner loading-lg"></span>
@@ -114,8 +105,34 @@ export default function CoursePlayer() {
         return <div className="alert alert-error">Course not found</div>;
     }
 
+    // A failed lookup is not the same as "not enrolled": keep the player
+    // closed and offer a retry instead of silently redirecting.
+    if (viewState === "error") {
+        return (
+            <div className="container mx-auto px-4 py-10 max-w-lg">
+                <div className="alert alert-warning">
+                    <span>{enrollmentsLoadError || "Could not verify your enrollment."}</span>
+                </div>
+                <button
+                    onClick={() => dispatch(fetchMyEnrollments())}
+                    disabled={enrollmentsLoading}
+                    className="btn btn-primary mt-4 gap-2"
+                >
+                    {enrollmentsLoading ? (
+                        <>
+                            <span className="loading loading-spinner"></span>
+                            Retrying...
+                        </>
+                    ) : (
+                        "Retry"
+                    )}
+                </button>
+            </div>
+        );
+    }
+
     // The player is for enrolled students only; everyone else goes back to the public course page
-    if (!enrollment) {
+    if (viewState === "not-enrolled") {
         return <Navigate to={`/courses/${id}`} replace />;
     }
 
@@ -291,7 +308,6 @@ export default function CoursePlayer() {
 }
 
 function AssignmentSubmission({ courseId, lessonId, prompt, enrollment, onComplete }) {
-    const dispatch = useDispatch();
     const [answer, setAnswer] = useState("");
     const [submitted, setSubmitted] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -359,8 +375,6 @@ function AssignmentSubmission({ courseId, lessonId, prompt, enrollment, onComple
             if (enrollment && onComplete) {
                 try {
                     await onComplete();
-                    // Refresh enrollments for dashboard
-                    dispatch(fetchMyEnrollments());
                 } catch (err) {
                     console.error("Failed to mark lesson complete:", err);
                 }
@@ -515,7 +529,6 @@ function AssignmentSubmission({ courseId, lessonId, prompt, enrollment, onComple
 }
 
 function QuizInterface({ quiz, courseId, lessonId, enrollment, onComplete }) {
-    const dispatch = useDispatch();
     const [answers, setAnswers] = useState({});
     const [submitted, setSubmitted] = useState(false);
     const [score, setScore] = useState(0);
@@ -631,11 +644,6 @@ function QuizInterface({ quiz, courseId, lessonId, enrollment, onComplete }) {
             if (enrollment && onComplete) {
                 try {
                     await onComplete();
-                    // Refresh enrollments for dashboard
-                    dispatch(fetchMyEnrollments());
-
-                    // Show success message
-                    console.log(`Quiz submitted successfully! Score: ${result.percent}% (${result.score}/${result.total})`);
                 } catch (err) {
                     console.error("Failed to mark lesson complete:", err);
                 }
